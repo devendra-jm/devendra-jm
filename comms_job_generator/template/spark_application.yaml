@@ -1,0 +1,116 @@
+apiVersion: "sparkoperator.k8s.io/v1beta2"
+kind: SparkApplication
+metadata:
+  name: "<<spark-job-name>>-job-{{ execution_date.strftime('%Y-%m-%d-%H%M%S') }}-{{ task_instance.try_number }}"
+spec:
+  type: Scala
+  mode: cluster
+  timeToLiveSeconds: 36000
+  image: "{{ params.job_image }}"
+  imagePullPolicy: Always
+  mainClass: "{{ params.main_class }}"
+  mainApplicationFile: "{{ params.jar_location }}"
+  {% if params['s3_kms_key'] %}
+  hadoopConf:
+    "fs.s3.serverSideEncryption.kms.keyId": "{{ params.s3_kms_key }}"
+    "fs.s3a.aws.credentials.provider": "com.amazonaws.auth.DefaultAWSCredentialsProviderChain"
+  {% endif %}
+  arguments:
+    - "{{ dag_run.conf['job_end_date'] | default(next_execution_date.isoformat(), true) }}"
+    - "{{ params.args.env }}"
+    - "{{ params.args.fieldsToBePublished }}"
+    - "{{ params.args.eventName }}"
+    - "{{ params.args.<<event-data-location>> }}"
+  sparkVersion: "3.0.0"
+  restartPolicy:
+    type: OnFailure
+    onFailureRetries: 2
+    onFailureRetryInterval: 60
+  volumes:
+    - name: "spark-volume"
+      hostPath:
+        path: "/tmp"
+        type: Directory
+  driver:
+    cores: {{ params.resources.driver_cores }}
+    memory: {{ params.resources.driver_memory }}
+    env:
+      - name: AWS_STS_REGIONAL_ENDPOINTS
+        value: regional
+      - name: SEGMENT_WRITE_KEY
+        valueFrom:
+          secretKeyRef:
+            name: airflow-secrets
+            key: SEGMENT_WRITE_KEY
+    labels:
+      version: 3.0.0
+    serviceAccount: "{{ params.service_account }}"
+    tolerations:
+      - effect: NoSchedule
+        key: appType
+        operator: Equal
+        value: batchJobs
+    volumeMounts:
+      - name: "spark-volume"
+        mountPath: "/tmp"
+    annotations:
+      cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
+    affinity:
+      nodeAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 2
+          preference:
+            matchExpressions:
+              - key: appType
+                operator: In
+                values:
+                - airflow
+        - weight: 1
+          preference:
+            matchExpressions:
+              - key: appType
+                operator: DoesNotExist
+    tolerations:
+    - key: appType
+      operator: Equal
+      value: airflow
+      effect: NoSchedule
+  executor:
+    cores: {{ params.resources.executor_cores }}
+    instances: {{ params.resources.executor_instances }}
+    memory: {{ params.resources.executor_memory }}
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+          - matchExpressions:
+            - key: appName
+              operator: In
+              values:
+              - batchJobs
+            - key: appType
+              operator: In
+              values:
+              - batchJobs
+    env:
+      - name: AWS_STS_REGIONAL_ENDPOINTS
+        value: regional
+      - name: SEGMENT_WRITE_KEY
+        valueFrom:
+          secretKeyRef:
+            name: airflow-secrets
+            key: SEGMENT_WRITE_KEY
+    tolerations:
+      - key: "appType"
+        operator: Equal
+        value: "batchJobs"
+        effect: NoSchedule
+      - key: "appName"
+        operator: Equal
+        value: "batchJobs"
+        effect: NoSchedule
+    labels:
+      version: 3.0.0
+    volumeMounts:
+      - name: "spark-volume"
+        mountPath: "/tmp"

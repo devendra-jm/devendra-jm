@@ -1,0 +1,23 @@
+{
+    "<<arg-prefix>>_ARG_CONSTANTS": {
+        "segment_publisher_jar_name": "ds-jm-segment-publisher.jar",
+        "segment_publisher_main_class": "money.jupiter.segment.publisher.SegmentPublisherMainApp",
+        "segment_publisher_image_name": "403223234871.dkr.ecr.ap-south-1.amazonaws.com/ds-jm-spark-jobs/spark",
+        "segment_publisher_image_tag": "76ff5ee113b50422fec285bb5701c1fb4b1e4ce5",
+        "fields_to_be_published": "customerId,appsFlyerId,advertisingId,platform",
+        "eventName": "<<event_name_versioned>>"
+    },
+    "<<arg-prefix>>_ATHENA_CONSTANTS": {
+        "s3_data_bucket": "jm-dsprod-delta-lake",
+        "<<spark-job-name>>_data_storage_location": "s3://jm-dsprod-delta-lake/data/kafka/<<product>>/<<event_name>>/",
+        "database": "delta_lake",
+        "workgroup": "transformations"
+    },
+    "<<arg-prefix>>_ENV_CONSTANTS": {
+        "spark_executor_instances": "2",
+        "spark_executor_cores": "2",
+        "spark_driver_cores": "2",
+        "spark_driver_memory": "2g",
+        "spark_executor_memory": "2g"
+    }
+}
